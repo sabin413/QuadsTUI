@@ -49,6 +49,6 @@ STRATA:
   Strat8:
     lat:
       min: 70
+      max: 90
       
       max: 90
-
