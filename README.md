@@ -8,7 +8,6 @@ It will then open a graphical interface on your terminal. What you see in the di
 latitude stratum classification scheme, see the following. Alternatively you could see it at 
 "/home/sadhika8/JupyterLinks/nobackup/quads_dev/conf/strata.yaml".
 
-
 STRATA:
 
   Strat1:
@@ -49,6 +48,4 @@ STRATA:
   Strat8:
     lat:
       min: 70
-      max: 90
-      
       max: 90
