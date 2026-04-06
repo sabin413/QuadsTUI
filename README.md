@@ -1,4 +1,4 @@
-It's a TUI for QUADS. It is based on textual (https://textual.textualize.io), a Python API for terminal user interface development.
+It's a TUI for QuADS. It is based on textual (https://textual.textualize.io), a Python API for terminal user interface development.
 To use this TUI:
 1. clone this repo
 2. run "pixi run python app.py" on your terminal.
