@@ -2,7 +2,7 @@ It's a TUI for QUADS. It is based on textual (https://textual.textualize.io), a 
 To use this TUI:
 1. clone this repo
 2. run "pixi run python app.py" on your terminal.
-Then, you need to give it to more inputs it will ask for: model (such as geosfp) and date (such as 2024-02-01).
+Then, you need to give it two inputs it will ask for: model (such as geosfp) and date (such as 2024-02-01).
 
 It will then open a graphical interface on your terminal. What you see in the display is mostly self explanatory. If you need to know the 
 latitude stratum classification scheme, see the following. Alternatively you could see it at 
