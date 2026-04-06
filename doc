@@ -1,0 +1,728 @@
+# Textual TUI Application — Code Structure and Developer Guide
+
+This document explains the structure and behavior of the Textual TUI application that loads `.pkl` files, filters rows, displays violations in a table, and plots quantile data.
+
+The goal is to help a developer understand:
+
+* how the code is structured
+* how data flows through the application
+* how Textual widgets interact with application state
+* how events trigger UI updates
+
+---
+
+# Section 1: Imports, Filename Parsing, and Helper Functions
+
+This section contains:
+
+* imports
+* `FILE_RE`
+* `fmt_bytes`
+* `shorten`
+* `parse_file_label`
+* `to_1d_float_list`
+
+These are **support utilities**. They are not the main application logic but help keep the UI code clean and readable.
+
+---
+
+## FILE_RE
+
+This regular expression parses filenames such as:
+
+`quads_results_geosfp_2024_02_10_reference_date_2023-01.pkl`
+
+and extracts three pieces of information:
+
+* model
+* date
+* reference date
+
+These fields are later used to generate readable labels in the file list panel.
+
+Without this parsing step, the UI would show long filenames that are harder to read.
+
+---
+
+## fmt_bytes
+
+This helper converts an integer number of bytes into a human-readable string.
+
+Example outputs:
+
+* `512 B`
+* `3.4 KB`
+* `120.7 MB`
+* `1.8 GB`
+
+It is used in the **file summary panel** to display DataFrame memory usage.
+
+---
+
+## shorten
+
+Some strings in the DataFrame, especially `id_string`, can be very long.
+
+This function truncates them so they fit nicely in the table.
+
+Example:
+
+`very_long_string_that_is_hard_to_read`
+
+becomes something like:
+
+`very_long_string_that_is_...`
+
+This prevents the UI table from becoming messy.
+
+---
+
+## parse_file_label
+
+This function turns filenames into readable labels.
+
+Example conversion:
+
+`quads_results_GEOSFP_2024_02_10_reference_date_2023-01.pkl`
+
+becomes:
+
+`GEOSFP | 2024-02-10 | ref 2023-01`
+
+If the filename does not match the regex pattern, the function simply returns the relative path.
+
+These labels are displayed in the **left file list panel**.
+
+---
+
+## to_1d_float_list
+
+Rows in the DataFrame may store quantile data in different formats:
+
+* Python list
+* tuple
+* numpy array
+* pandas object with `.tolist()`
+
+This function converts any of these into a plain `list[float]`.
+
+It ensures the plotting code always receives consistent data.
+
+This function is used by:
+
+* row summary generation
+* quantile plotting
+
+---
+
+## Why This Section Matters
+
+These helper functions isolate **formatting and conversion logic** from UI code.
+
+This improves maintainability and readability.
+
+Instead of repeating conversions everywhere, the application calls these utilities.
+
+---
+
+# Section 2: The Custom Plot Widget
+
+This section defines a widget:
+
+`class QuantilePlot(PlotextPlot)`
+
+This widget is responsible for **all plotting functionality** in the app.
+
+---
+
+## Purpose
+
+Instead of having plotting logic scattered throughout the application, the plotting behavior is encapsulated inside this widget.
+
+This means:
+
+* the main application decides **what to plot**
+* the widget decides **how to render the plot**
+
+This separation makes the code cleaner.
+
+---
+
+## on_mount
+
+This method runs when the widget is created.
+
+It initializes default plot settings:
+
+* plot title
+* grid visibility
+
+Example behavior:
+
+* `title = "Quantile Plot"`
+* `grid = True`
+
+---
+
+## show_message
+
+This method displays a message inside the plot area.
+
+Examples:
+
+* `Select a file`
+* `No plottable data`
+* `No rows to display`
+
+It is useful when there is no data available yet.
+
+Instead of showing a blank plot, the user sees helpful feedback.
+
+---
+
+## show_row_plot
+
+This method draws the quantile plot for a selected row.
+
+Inputs:
+
+* x values from `q_list`
+* y values from `quantile_values`
+* optional fence lines:
+
+  * `fence_low`
+  * `fence_high`
+
+The method:
+
+1. clears the existing plot
+2. plots quantile values
+3. optionally draws horizontal fence lines
+4. sets a title based on the row's `id_string`
+
+It also checks for invalid cases:
+
+* empty quantile arrays
+* mismatched x/y lengths
+
+In those cases it displays a message instead of crashing.
+
+---
+
+## Design Lesson
+
+Encapsulation.
+
+Plot rendering is handled entirely inside the `QuantilePlot` widget.
+
+The main application only passes data.
+
+---
+
+# Section 3: Main Application Shell and Static Configuration
+
+The core application class is `class PklBrowser(App)`.
+
+This class manages:
+
+* application state
+* UI widgets
+* event handling
+* data loading
+
+---
+
+## CSS Layout
+
+Textual uses a CSS-like system to control layout.
+
+Key layout rule:
+
+`Screen { layout: horizontal; }`
+
+This splits the screen into **left and right panels**.
+
+### Left Panel
+
+Contains:
+
+* root directory label
+* file list
+
+This panel has a fixed width.
+
+### Right Panel
+
+Contains:
+
+* file summary
+* preview table
+* row summary
+* quantile plot
+
+This panel expands to fill the remaining space.
+
+Borders are used to visually separate sections.
+
+---
+
+## BINDINGS
+
+Keyboard shortcuts are defined using `BINDINGS = [...]`.
+
+Examples:
+
+* `q` → quit
+* `r` → reload files
+* `enter` → activate current selection
+* `f` → focus file list
+* `t` → focus table
+
+Textual automatically maps these keys to methods named `action_<name>()`.
+
+Example:
+
+`("r", "reload_files", "Reload files")`
+
+calls `action_reload_files()`.
+
+---
+
+## REQUIRED_COLUMNS
+
+This list defines the schema expected in the loaded DataFrame.
+
+Example required columns:
+
+* `id_string`
+* `no_of_violations_left`
+* `no_of_violations_right`
+* `no_of_total_violations`
+* `fence_low`
+* `fence_high`
+* `quantile_values`
+* `q_list`
+
+If a pickle file does not contain these columns, the application refuses to load it.
+
+This prevents runtime errors later.
+
+---
+
+## PickleLoaded Message
+
+This is a custom Textual message class.
+
+It carries:
+
+* file path
+* loaded DataFrame
+
+This message is sent after the background worker loads a pickle.
+
+It allows the main UI thread to safely update widgets.
+
+---
+
+## **init** State Variables
+
+Important variables initialized here:
+
+* `self.files`
+* `self.df`
+* `self.view_df`
+* `self.current_path`
+
+### self.df
+
+The **full DataFrame loaded from the pickle file**.
+
+### self.view_df
+
+The **filtered and sorted DataFrame that is actually displayed in the table**.
+
+This distinction is extremely important.
+
+It prevents index mismatch bugs between displayed rows and actual data rows.
+
+---
+
+# Section 4: UI Construction and Startup Behavior
+
+This section includes:
+
+* `compose()`
+* `on_mount()`
+
+---
+
+## compose()
+
+This method builds the widget tree.
+
+It defines the entire UI structure.
+
+### Left Panel
+
+* root label
+* file list
+
+### Right Panel
+
+* file summary
+* preview table
+* row summary
+* quantile plot
+
+### Global Elements
+
+* header
+* footer
+
+The `compose()` method only creates widgets.
+
+It does **not** populate them with data yet.
+
+---
+
+## on_mount()
+
+This method runs after widgets are created.
+
+It performs initial configuration:
+
+* enables row selection in the table
+* enables zebra stripes
+* loads the file list
+* initializes the plot widget with a message
+
+This method is essentially the **startup setup logic**.
+
+---
+
+# Section 5: File Discovery, Selection, Loading, and Refresh
+
+This section contains:
+
+* keyboard actions
+* file scanning
+* pickle loading
+* state updates
+
+---
+
+## action_reload_files()
+
+Triggered by pressing `r`.
+
+This rescans the root directory for `.pkl` files.
+
+---
+
+## action_focus_files()
+
+Triggered by pressing `f`.
+
+Moves keyboard focus to the file list panel.
+
+---
+
+## action_focus_table()
+
+Triggered by pressing `t`.
+
+Moves keyboard focus to the table.
+
+---
+
+## action_activate_current()
+
+Triggered by pressing **Enter**.
+
+Behavior depends on which widget currently has focus.
+
+### If file list is focused
+
+The selected pickle file is loaded.
+
+### If table is focused
+
+The selected row is summarized and plotted.
+
+---
+
+## reload_file_list()
+
+This method:
+
+1. recursively scans the root directory
+2. finds `.pkl` files
+3. populates the file list widget
+4. selects the first file
+5. updates the file summary panel
+
+---
+
+## handle_file_selected()
+
+Runs when a user selects a file from the file list.
+
+It determines the selected file index and starts loading the pickle file.
+
+---
+
+## load_pickle()
+
+This method runs inside a **background worker thread**.
+
+It performs:
+
+1. reading the pickle file
+2. validating it contains a DataFrame
+3. validating required columns exist
+
+If successful, it sends a `PickleLoaded` message.
+
+If loading fails, it shows an error notification.
+
+This background loading prevents the UI from freezing.
+
+---
+
+## handle_pickle_loaded()
+
+This method runs after a pickle file is successfully loaded.
+
+It:
+
+1. stores the DataFrame
+2. updates the file summary
+3. builds the preview table
+4. selects the first visible row
+5. updates row summary
+6. updates the plot
+
+If no rows pass the filter, it shows a message.
+
+---
+
+# Section 6: DataFrame Summarization, Table View, Row Selection, and Plotting
+
+This section includes:
+
+* `update_file_summary`
+* `update_preview`
+* `handle_row_highlighted`
+* `update_row_summary`
+* `plot_row`
+
+These functions form the **core data exploration logic**.
+
+---
+
+## update_file_summary()
+
+Computes statistics for the entire DataFrame.
+
+Metrics displayed:
+
+* memory usage
+* total left violations
+* total right violations
+* total total violations
+* number of rows with nonzero violations
+
+This information appears in the **file summary panel**.
+
+---
+
+## update_preview()
+
+This method builds the table view.
+
+Steps:
+
+1. clear existing table
+2. define visible columns
+3. filter rows where `no_of_total_violations != 0`
+4. sort rows by `no_of_total_violations` in descending order
+5. store filtered rows in `self.view_df`
+6. populate the table row by row
+
+This step defines exactly **what the user sees**.
+
+---
+
+## handle_row_highlighted()
+
+This event fires when the highlighted table row changes.
+
+It triggers:
+
+* `update_row_summary()`
+* `plot_row()`
+
+This keeps the UI synchronized as the user moves through rows.
+
+---
+
+## update_row_summary()
+
+This method reads data from `self.view_df`, not from `self.df`.
+
+This ensures the selected row matches the displayed table row.
+
+The summary includes:
+
+* visible row index
+* original DataFrame index
+* `id_string`
+* total violations
+* left violations
+* right violations
+* fence values
+* quantile vector lengths
+
+---
+
+## plot_row()
+
+This method extracts:
+
+* `q_list`
+* `quantile_values`
+
+from the selected row.
+
+It then sends the data to the `QuantilePlot` widget.
+
+The plot displays:
+
+* quantile curve
+* optional fence lines
+* truncated row identifier as title
+
+---
+
+# Section 7: Program Entry Point
+
+The final code block is `if __name__ == "__main__":`.
+
+## Purpose
+
+Run the application when the script is executed.
+
+## Behavior
+
+1. check if a root directory is provided
+2. otherwise use a default path
+3. create the `PklBrowser`
+4. run the Textual app
+
+---
+
+# Full Control Flow of the Application
+
+## Startup
+
+1. Python enters main
+2. root directory is determined
+3. `PklBrowser` is created
+4. Textual starts the event loop
+5. `compose()` builds the UI
+6. `on_mount()` initializes widgets and loads file list
+
+---
+
+## File Selection
+
+7. user selects a file
+8. `handle_file_selected()` starts background loading
+9. `load_pickle()` reads and validates the pickle
+10. success triggers `PickleLoaded`
+
+---
+
+## File Loaded
+
+11. DataFrame stored in `self.df`
+12. summary statistics calculated
+13. filtered rows stored in `self.view_df`
+14. preview table populated
+15. first row selected automatically
+16. row summary and plot displayed
+
+---
+
+## Row Navigation
+
+17. user moves up or down in the table
+18. `handle_row_highlighted()` fires
+19. row summary updated
+20. plot updated
+
+---
+
+# Main Design Lesson from the Application
+
+A critical design rule for data browser interfaces is this:
+
+**Never let the UI display one dataset while row actions reference another dataset by index.**
+
+The correct architecture is:
+
+* `self.df` → full dataset
+* `self.view_df` → filtered and sorted dataset used by the UI
+
+The table renders `self.view_df`.
+
+Row selection, summaries, and plotting also read from `self.view_df`.
+
+This keeps everything consistent.
+
+---
+
+# What This Application Demonstrates About Textual
+
+This project demonstrates several important Textual concepts:
+
+* widget composition
+* CSS layout
+* keyboard bindings
+* focus control
+* event-driven updates
+* custom widgets
+* background worker threads
+* custom message passing
+* state-driven UI updates
+
+This is already a **real interactive terminal application**, not just a toy example.
+
+---
+
+# Key Lessons for Developers
+
+## 1. Separate full data from displayed data
+
+Use different variables for raw data and filtered views.
+
+## 2. Keep formatting utilities separate
+
+Helper functions simplify UI code.
+
+## 3. Encapsulate complex rendering
+
+Custom widgets keep code clean.
+
+## 4. Use background threads for I/O
+
+Never block the UI.
+
+## 5. Let events drive UI updates
+
+Selection events should trigger minimal necessary updates.
+
+## 6. Separate UI structure, application state, and behavior
+
+This separation is essential as the application grows.
+
