@@ -30,8 +30,8 @@ LAT_NAMES = ["lat", "latitude", "y"]
 LON_NAMES = ["lon", "longitude", "x"]
 TIME_NAMES = ["time", "valid_time", "datetime"]
 
-DATA_YAML_FILE = Path("/home/sadhika8/JupyterLinks/nobackup/quads/conf/dataserver.yaml")
-STRATA_FILE = Path("/home/sadhika8/JupyterLinks/nobackup/quads/conf/strata.yaml")
+DATA_YAML_FILE = Path("/home/sadhika8/JupyterLinks/nobackup/quads_dev/conf/dataserver.yaml")
+STRATA_FILE = Path("/home/sadhika8/JupyterLinks/nobackup/quads_dev/conf/strata.yaml")
 
 
 def shorten(value: Any, width: int = 60) -> str:
@@ -687,7 +687,7 @@ class PklBrowser(App):
 
 if __name__ == "__main__":
     base_root = Path(
-        sys.argv[1] if len(sys.argv) > 1 else "~/JupyterLinks/nobackup/quads_results"
+        sys.argv[1] if len(sys.argv) > 1 else "/home/sadhika8/JupyterLinks/nobackup/quads_results"
     ).expanduser()
 
     model = input("Enter model name (e.g. geosfp): ").strip()
